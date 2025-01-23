@@ -10,7 +10,7 @@ frontend:
         - npm npm install -g @angular/cli
         - npm run build
   artifacts:
-    baseDirectory: dist/iri-poc
+    baseDirectory: dist/iri-poc/browser
     files:
       - '**/*'
   cache:
