@@ -42,3 +42,8 @@ testem.log
 Thumbs.db
 build.sh
 npm-config-original.txt
+
+# amplify
+.amplify
+amplify_outputs*
+amplifyconfiguration*
