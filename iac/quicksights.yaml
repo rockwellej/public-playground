@@ -1,0 +1,139 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyKinesisStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      ShardCount: 1
+
+  MyKinesisFirehose:
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+    Properties:
+      DeliveryStreamType: 'KinesisStreamAsSource'
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN: !GetAtt MyKinesisStream.Arn
+        RoleARN: !GetAtt FirehoseRole.Arn
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Ref S3Bucket
+        RoleARN: !GetAtt FirehoseRole.Arn
+
+  FirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'firehose.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'FirehosePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:PutObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:PutObjectTagging'
+                  - 's3:GetBucketLocation'
+                  - 's3:ListBucket'
+                Resource: '*'
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'my-data-bucket'
+
+  GlueDatabase:
+    Type: 'AWS::Glue::Database'
+    Properties:
+      CatalogId: !Ref AWS::AccountId
+      DatabaseInput:
+        Name: 'my_glue_database'
+
+  GlueCrawler:
+    Type: 'AWS::Glue::Crawler'
+    Properties:
+      Role: !GetAtt GlueRole.Arn
+      DatabaseName: !Ref GlueDatabase
+      Targets:
+        S3Targets:
+          - Path: !Sub 's3://${S3Bucket}/'
+      Schedule:
+        ScheduleExpression: 'cron(0 12 * * ? *)'
+
+  GlueRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'glue.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'GluePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:*'
+                  - 'glue:*'
+                Resource: '*'
+
+  AthenaWorkGroup:
+    Type: 'AWS::Athena::WorkGroup'
+    Properties:
+      Name: 'primary'
+      State: 'ENABLED'
+      WorkGroupConfiguration:
+        ResultConfiguration:
+          OutputLocation: !Sub 's3://${S3Bucket}/athena-results/'
+
+  QuickSightDataSource:
+    Type: 'AWS::QuickSight::DataSource'
+    Properties:
+      DataSourceId: 'my-quicksight-datasource'
+      Name: 'MyQuickSightDataSource'
+      Type: 'ATHENA'
+      DataSourceParameters:
+        AthenaParameters:
+          WorkGroup: !Ref AthenaWorkGroup
+      Permissions:
+        - Principal: !Sub 'arn:aws:quicksight:${AWS::Region}:${AWS::AccountId}:namespace/default'
+          Actions:
+            - 'quicksight:DescribeDataSource'
+            - 'quicksight:DescribeDataSourcePermissions'
+            - 'quicksight:PassDataSource'
+            - 'quicksight:UpdateDataSource'
+            - 'quicksight:DeleteDataSource'
+            - 'quicksight:UpdateDataSourcePermissions'
+      AwsAccountId: !Ref AWS::AccountId
+      SslProperties:
+        DisableSsl: false
+      VpcConnectionProperties:
+        VpcConnectionArn: !Sub 'arn:aws:quicksight:${AWS::Region}:${AWS::AccountId}:vpcConnection/my-vpc-connection'
+
+  QuickSightRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'quicksight.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'QuickSightPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'athena:*'
+                  - 's3:*'
+                Resource: '*'
