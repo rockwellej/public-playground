@@ -1,0 +1,39 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyEC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      ImageId: 'ami-0abcdef1234567890' # Replace with your desired AMI ID
+      InstanceType: 't2.micro'
+      KeyName: 'my-key-pair' # Replace with your key pair name
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: true
+          DeviceIndex: '0'
+          SubnetId: 'subnet-0bb1c79de3EXAMPLE' # Replace with your subnet ID
+          GroupSet:
+            - Ref: MySecurityGroup
+
+  MySecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Allow SSH and HTTP access'
+      VpcId: 'vpc-0bb1c79de3EXAMPLE' # Replace with your VPC ID
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: '0.0.0.0/0'
+
+  MyDNSRecord:
+    Type: 'AWS::Route53::RecordSet'
+    Properties:
+      HostedZoneName: 'example.com.' # Replace with your hosted zone name
+      Name: 'ec2.example.com.' # Replace with your desired DNS name
+      Type: 'A'
+      TTL: '60'
+      ResourceRecords:
+        - !GetAtt MyEC2Instance.PublicIp
