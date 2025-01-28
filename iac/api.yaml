@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyApiGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: 'MyApiGateway'
+
+  MyApiResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt MyApiGateway.RootResourceId
+      PathPart: 'myresource'
+      RestApiId: !Ref MyApiGateway
+
+  MyApiMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      AuthorizationType: 'NONE'
+      HttpMethod: 'POST'
+      ResourceId: !Ref MyApiResource
+      RestApiId: !Ref MyApiGateway
+      Integration:
+        IntegrationHttpMethod: 'POST'
+        Type: 'AWS_PROXY'
+        Uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${MyLambdaFunction.Arn}/invocations'
+
+  MyLambdaFunction:
+    Type: 'AWS::Lambda::Function'
+    Properties:
+      Handler: 'index.handler'
+      Role: !GetAtt MyLambdaExecutionRole.Arn
+      Code:
+        S3Bucket: 'my-lambda-functions'
+        S3Key: 'my-function.zip'
+      Runtime: 'nodejs14.x'
+      Environment:
+        Variables:
+          RDS_HOST: !Ref RDSHost
+          RDS_USER: !Ref RDSUser
+          RDS_PASSWORD: !Ref RDSPassword
+          RDS_DB_NAME: !Ref RDSDBName
+
+  MyLambdaExecutionRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'lambda.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'LambdaExecutionPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 'logs:*'
+                  - 'rds:*'
+                  - 'kinesis:PutRecord'
+                Resource: '*'
+
+  MyRDSInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass: 'db.t2.micro'
+      Engine: 'mysql'
+      MasterUsername: !Ref RDSUser
+      MasterUserPassword: !Ref RDSPassword
+      DBName: !Ref RDSDBName
+
+  MyKinesisStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      ShardCount: 1
+
+  MyLambdaPermission:
+    Type: 'AWS::Lambda::Permission'
+    Properties:
+      Action: 'lambda:InvokeFunction'
+      FunctionName: !Ref MyLambdaFunction
+      Principal: 'apigateway.amazonaws.com'
+      SourceArn: !Sub 'arn:aws:execute-api:${AWS::Region}:${AWS::AccountId}:${MyApiGateway}/*/POST/myresource'
+
+Parameters:
+  RDSHost:
+    Type: 'String'
+    Description: 'RDS instance endpoint'
+  RDSUser:
+    Type: 'String'
+    Description: 'RDS master username'
+  RDSPassword:
+    Type: 'String'
+    Description: 'RDS master password'
+  RDSDBName:
+    Type: 'String'
+    Description: 'RDS database name'
