@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyApiGateway:
+    Type: 'AWS::ApiGateway::RestApi'
+    Properties:
+      Name: 'MyApiGateway'
+
+  MyApiResource:
+    Type: 'AWS::ApiGateway::Resource'
+    Properties:
+      ParentId: !GetAtt MyApiGateway.RootResourceId
+      PathPart: 'myresource'
+      RestApiId: !Ref MyApiGateway
+
+  MyApiMethod:
+    Type: 'AWS::ApiGateway::Method'
+    Properties:
+      AuthorizationType: 'NONE'
+      HttpMethod: 'POST'
+      ResourceId: !Ref MyApiResource
+      RestApiId: !Ref MyApiGateway
+      Integration:
+        IntegrationHttpMethod: 'POST'
+        Type: 'HTTP'
+        Uri: !Sub 'http://${MyEC2Instance.PublicDnsName}:8080/my-java-endpoint'
+        IntegrationResponses:
+          - StatusCode: 200
+      MethodResponses:
+        - StatusCode: 200
+
+  MyEC2Instance:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: 't2.micro'
+      KeyName: 'my-key-pair'
+      ImageId: !Ref LatestAmazonLinux2AMI
+      SecurityGroupIds:
+        - !Ref MySecurityGroup
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          yum update -y
+          yum install -y java-11-amazon-corretto
+          yum install -y tomcat
+          service tomcat start
+          # Add your Java application setup and start commands here
+          # Example: Copy your WAR file to Tomcat webapps directory
+          # cp /path/to/your-app.war /usr/share/tomcat/webapps/
+
+  MySecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Enable HTTP access'
+      SecurityGroupIngress:
+        - IpProtocol: 'tcp'
+          FromPort: 80
+          ToPort: 80
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: 'tcp'
+          FromPort: 8080
+          ToPort: 8080
+          CidrIp: '0.0.0.0/0'
+
+  LatestAmazonLinux2AMI:
+    Type: 'AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>'
+    Properties:
+      Name: '/aws/service/ami-amazon-linux-latest/amzn2-ami-hvm-x86_64-gp2'
+
+Outputs:
+  ApiUrl:
+    Description: 'URL for the API Gateway'
+    Value: !Sub 'https://${MyApiGateway}.execute-api.${AWS::Region}.amazonaws.com/prod/myresource'
