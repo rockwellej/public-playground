@@ -1,0 +1,84 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyKinesisStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      ShardCount: 1
+
+  MyKinesisFirehose:
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+    Properties:
+      DeliveryStreamType: 'KinesisStreamAsSource'
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN: !GetAtt MyKinesisStream.Arn
+        RoleARN: !GetAtt FirehoseRole.Arn
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Ref S3Bucket
+        RoleARN: !GetAtt FirehoseRole.Arn
+
+  FirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'firehose.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'FirehosePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:PutObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:PutObjectTagging'
+                  - 's3:GetBucketLocation'
+                  - 's3:ListBucket'
+                Resource: '*'
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'my-kendra-data-bucket'
+
+  KendraIndex:
+    Type: 'AWS::Kendra::Index'
+    Properties:
+      Name: 'MyKendraIndex'
+      Edition: 'ENTERPRISE_EDITION'
+      RoleArn: !GetAtt KendraRole.Arn
+
+  KendraDataSource:
+    Type: 'AWS::Kendra::DataSource'
+    Properties:
+      IndexId: !Ref KendraIndex
+      Name: 'MyKendraDataSource'
+      Type: 'S3'
+      DataSourceConfiguration:
+        S3Configuration:
+          BucketName: !Ref S3Bucket
+      RoleArn: !GetAtt KendraRole.Arn
+
+  KendraRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'kendra.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'KendraPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:*'
+                Resource: '*'
