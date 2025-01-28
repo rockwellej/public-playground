@@ -1,0 +1,77 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyKinesisStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      ShardCount: 1
+
+  MyKinesisFirehose:
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+    Properties:
+      DeliveryStreamType: 'KinesisStreamAsSource'
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN: !GetAtt MyKinesisStream.Arn
+        RoleARN: !GetAtt FirehoseRole.Arn
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Ref S3Bucket
+        RoleARN: !GetAtt FirehoseRole.Arn
+
+  FirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'firehose.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'FirehosePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:PutObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:PutObjectTagging'
+                  - 's3:GetBucketLocation'
+                  - 's3:ListBucket'
+                Resource: '*'
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'my-bedrock-data-bucket'
+
+  BedrockModel:
+    Type: 'AWS::Bedrock::Model'
+    Properties:
+      ModelName: 'MyLargeLanguageModel'
+      ModelType: 'LLM'
+      InputDataConfig:
+        S3Uri: !Sub 's3://${S3Bucket}/input/'
+      OutputDataConfig:
+        S3Uri: !Sub 's3://${S3Bucket}/output/'
+      RoleArn: !GetAtt BedrockRole.Arn
+
+  BedrockRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'bedrock.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'BedrockPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:*'
+                Resource: '*'

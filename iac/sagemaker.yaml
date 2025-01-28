@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Resources:
+  MyKinesisStream:
+    Type: 'AWS::Kinesis::Stream'
+    Properties:
+      ShardCount: 1
+
+  MyKinesisFirehose:
+    Type: 'AWS::KinesisFirehose::DeliveryStream'
+    Properties:
+      DeliveryStreamType: 'KinesisStreamAsSource'
+      KinesisStreamSourceConfiguration:
+        KinesisStreamARN: !GetAtt MyKinesisStream.Arn
+        RoleARN: !GetAtt FirehoseRole.Arn
+      ExtendedS3DestinationConfiguration:
+        BucketARN: !Ref S3Bucket
+        RoleARN: !GetAtt FirehoseRole.Arn
+
+  FirehoseRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'firehose.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'FirehosePolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:PutObject'
+                  - 's3:PutObjectAcl'
+                  - 's3:PutObjectTagging'
+                  - 's3:GetBucketLocation'
+                  - 's3:ListBucket'
+                Resource: '*'
+
+  S3Bucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'my-sagemaker-data-bucket'
+
+  SageMakerModel:
+    Type: 'AWS::SageMaker::Model'
+    Properties:
+      ExecutionRoleArn: !GetAtt SageMakerRole.Arn
+      PrimaryContainer:
+        Image: '123456789012.dkr.ecr.us-west-2.amazonaws.com/my-sagemaker-image:latest'
+        ModelDataUrl: !Sub 's3://${S3Bucket}/model/model.tar.gz'
+      ModelName: 'MySageMakerModel'
+
+  SageMakerEndpointConfig:
+    Type: 'AWS::SageMaker::EndpointConfig'
+    Properties:
+      EndpointConfigName: 'MySageMakerEndpointConfig'
+      ProductionVariants:
+        - InitialInstanceCount: 1
+          InstanceType: 'ml.m5.large'
+          ModelName: !Ref SageMakerModel
+          VariantName: 'AllTraffic'
+
+  SageMakerEndpoint:
+    Type: 'AWS::SageMaker::Endpoint'
+    Properties:
+      EndpointConfigName: !Ref SageMakerEndpointConfig
+      EndpointName: 'MySageMakerEndpoint'
+
+  SageMakerRole:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: 'Allow'
+            Principal:
+              Service: 'sagemaker.amazonaws.com'
+            Action: 'sts:AssumeRole'
+      Policies:
+        - PolicyName: 'SageMakerPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:*'
+                Resource: '*'
