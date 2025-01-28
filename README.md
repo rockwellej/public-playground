@@ -1,6 +1,6 @@
 # Jamie's Public Playground
 
-This project contains research materials and sample experimental resources to support my different interests and initiatives.  See below for alist of projects; for which this repository was originally created.  
+This repostiory contains research materials, code samples and experimental resources to support my different interests and initiatives.  See below for alist of projects; for which this repository was originally created.  
 - the IRI Hackathon POC.
 
 The [References](#references) section is supporting materials from research.
