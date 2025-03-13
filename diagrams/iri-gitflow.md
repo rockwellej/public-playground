@@ -1,6 +1,4 @@
----
-title: Example Git diagram
----
+### Git Flow
 ```mermaid
       gitGraph
         commit
