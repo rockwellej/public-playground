@@ -1,6 +1,11 @@
 ```mermaid
+---
+config:
+  look: handDrawn
+  theme: neutral
+---
 journey
-  title Engineering Tool Chain Decisions
+  title Engineering Toolchain 
   section Plan
     Github Project: 5: TechCom
   section Develop
